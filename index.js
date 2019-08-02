@@ -3,6 +3,8 @@ var http = require('http').createServer(app)
 var request = require('request')
 var io = require('socket.io')(http)
 
+var port = process.env.PORT || 8080
+
 var roomdata = require('roomdata')
 
 const pageSize = 25
@@ -14,7 +16,7 @@ app.get('/', function (req, res) {
 })
 
 io.on('connection', function (socket) {
-  console.log(socket.id);
+  console.log(socket.id)
   
   socket.on('room', function (room) {
     io.sockets.in(room).emit('notification', {
@@ -44,7 +46,7 @@ io.on('connection', function (socket) {
 
     const getLatest = (object) => {
       roomdata.set(socket, 'timeline', object)
-      io.sockets.in(room).emit('gotMessage', { from: 'System', message: 'Room changed to '+ object.category + ' sorted by ' + object.sort, time: new Date().toLocaleTimeString() })
+      io.sockets.in(room).emit('gotMessage', { from: 'System', message: 'Room changed to ' + object.category + ' sorted by ' + object.sort, time: new Date().toLocaleTimeString() })
       return new Promise((resolve, reject) => {
         if (object.category === 'hot') {
           request(
@@ -231,6 +233,6 @@ io.on('connection', function (socket) {
   })
 })
 
-http.listen(4000, function () {
-  console.log('listening on *:4000')
+http.listen(port, function () {
+  console.log('listening on *:'+port)
 })
