@@ -1,0 +1,22 @@
+{
+  "name": "server-c2g",
+  "version": "1.0.0",
+  "description": "C2G expressjs server",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "expressjs",
+    "express",
+    "coub"
+  ],
+  "author": "Lukas Papik",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.17.1",
+    "request": "^2.88.0",
+    "roomdata": "^1.1.7-b",
+    "socket.io": "^2.2.0"
+  }
+}
