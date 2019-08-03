@@ -29,7 +29,7 @@ io.on('connection', function (socket) {
     })
 
     roomdata.joinRoom(socket, room)
-    if (io.sockets.adapter.rooms[room].sockets !== undefined && Object.keys(io.sockets.adapter.rooms[room].sockets).length < 2) { // FIXME Proper user handle - Fixed
+    if (io.sockets.adapter.rooms[room] && Object.keys(io.sockets.adapter.rooms[room].sockets).length < 2) { // FIXME Proper user handle - Fixed
       resetRoom()
     } else {
       if (roomdata.get(socket, 'loadedCoubs') != null) {
@@ -110,45 +110,9 @@ io.on('connection', function (socket) {
       })
     }
 
-    /*
-    function getLatest () { // FIXME promise
-      request(
-        {
-          url: `http://coub.com/api/v2/timeline/hot?page=${roomdata.get(
-            socket,
-            'latestCoubsPage'
-          )}&per_page=${pageSize}&order_by=newest_popular`,
-          json: true
-        },
-        function (error, response, body) {
-          if (!error && response.statusCode === 200) {
-            roomdata.set(socket, 'loadedCoubs', body['coubs'])
-            io.sockets
-              .in(room)
-              .emit(
-                'gotNext',
-                roomdata.get(socket, 'loadedCoubs')[
-                  roomdata.get(socket, 'coubIndex')
-                ]
-              )
-            // roomdata.set(
-            //   socket,
-            //   'coubIndex',
-            //   roomdata.get(socket, 'coubIndex') + 1
-            // )
-          }
-        }
-      )
-    }
-*/
     socket.on('category', (object) => {
       resetRoom()
       getLatest(object)
-    })
-
-    socket.on('reqRandom', function () {
-      console.log('Send random coub')
-      // TODO Generate RNG
     })
 
     socket.on('reqPrev', function () {
