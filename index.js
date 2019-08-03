@@ -123,6 +123,40 @@ io.on('connection', function (socket) {
               }
             }
           )
+        } else if (object.category === 'tag') {
+          request(
+            {
+              url: `http://coub.com/api/v2/timeline/channel/so-sexy-hot-girls-in-coubs?order_by=${object.sort}?page=${roomdata.get(
+                socket,
+                'currentCoubPage'
+              )}&per_page=${pageSize}`,
+              json: true
+            },
+            function (error, response, body) {
+              if (!error && response.statusCode === 200) {
+                roomdata.set(socket, 'loadedCoubs', body['coubs'])
+                io.sockets
+                  .in(room)
+                  .emit(
+                    'gotCoub',
+                    roomdata.get(socket, 'loadedCoubs')[
+                      roomdata.get(socket, 'coubIndex')
+                    ]
+                  )
+                  try {
+                    io.sockets.in(room).emit('gotMessage', { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
+                  } catch (error) {
+                    console.log(error)
+                  }
+              }
+
+              if (!error) {
+                resolve('Stuff worked!')
+              } else {
+                reject(Error('It broke'))
+              }
+            }
+          )
         }
       })
     }
