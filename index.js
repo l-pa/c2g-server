@@ -75,13 +75,12 @@ io.on('connection', function (socket) {
                       roomdata.get(socket, 'coubIndex')
                     ]
                   )
-                try {
-                  io.sockets.in(room).emit('gotMessage', { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
-                } catch (error) {
-                  console.log('image not found')
-                  io.sockets.in(room).emit('gotMessage', { from: 'Coub', link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
-                } 
-}
+                  try {
+                    io.sockets.in(room).emit('gotMessage', { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
+                  } catch (error) {
+                    console.log(error)
+                  }
+              }
 
               if (!error) {
                 resolve('Stuff worked!')
@@ -113,9 +112,9 @@ io.on('connection', function (socket) {
                   try {
                     io.sockets.in(room).emit('gotMessage', { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
                   } catch (error) {
-                    console.log('image not found')
-                    io.sockets.in(room).emit('gotMessage', { from: 'Coub', link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
-                  }              }
+                    console.log(error)
+                  }
+              }
 
               if (!error) {
                 resolve('Stuff worked!')
@@ -150,12 +149,11 @@ io.on('connection', function (socket) {
                 roomdata.get(socket, 'coubIndex')
               ]
             )
-          try {
-            io.sockets.in(room).emit('gotMessage', { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
-          } catch (error) {
-            console.log('image not found')
-            io.sockets.in(room).emit('gotMessage', { from: 'Coub', link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
-          }
+            try {
+              io.sockets.in(room).emit('gotMessage', { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
+            } catch (error) {
+              console.log(error)
+            }
         } else {
           if (roomdata.get(socket, 'currentCoubPage') > 1) {
             roomdata.set(
@@ -194,12 +192,12 @@ io.on('connection', function (socket) {
                 roomdata.get(socket, 'coubIndex')
               ]
             )
-            try {
-              io.sockets.in(room).emit('gotMessage', { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
-            } catch (error) {
-              console.log('image not found')
-              io.sockets.in(room).emit('gotMessage', { from: 'Coub', link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
-            }        } else {
+          try {
+            io.sockets.in(room).emit('gotMessage', { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
+          } catch (error) {
+            console.log(error)
+          }
+        } else {
           roomdata.set(socket, 'coubIndex', 0)
           roomdata.set(
             socket,
