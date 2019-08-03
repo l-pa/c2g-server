@@ -3,6 +3,9 @@ var http = require('http').createServer(app)
 var request = require('request')
 var io = require('socket.io')(http)
 
+var compression = require('compression')
+var helmet = require('helmet')
+
 var port = process.env.PORT || 8080
 
 var roomdata = require('roomdata')
@@ -11,13 +14,16 @@ const pageSize = 25
 
 // roomdata.leaveRoom(socket); // you will have to replace your socket.leave with this line
 
+app.use(compression())
+app.use(helmet())
+
 app.get('/', function (req, res) {
   res.send('<h1>C2G server API</h1>')
 })
 
 io.on('connection', function (socket) {
   console.log(socket.id)
-  
+
   socket.on('room', function (room) {
     io.sockets.in(room).emit('notification', {
       text: 'User ' + socket.id + ' joined',
@@ -29,31 +35,32 @@ io.on('connection', function (socket) {
     })
 
     roomdata.joinRoom(socket, room)
-    if (io.sockets.adapter.rooms[room] && Object.keys(io.sockets.adapter.rooms[room].sockets).length < 2) { // FIXME Proper user handle - Fixed
+    if (io.sockets.adapter.rooms[room] && Object.keys(io.sockets.adapter.rooms[room].sockets).length < 2) { // FIXME Proper user handle
       resetRoom()
+      roomdata.set(socket, 'roomOwner', socket.id)
     } else {
       if (roomdata.get(socket, 'loadedCoubs') != null) {
         io.in(room).emit(
-          'gotNext',
+          'gotCoub',
           roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')]
         )
       }
     }
     function resetRoom () {
       roomdata.set(socket, 'coubIndex', 0)
-      roomdata.set(socket, 'latestCoubsPage', 1)
+      roomdata.set(socket, 'currentCoubPage', 1)
     }
 
     const getLatest = (object) => {
       roomdata.set(socket, 'timeline', object)
-      io.sockets.in(room).emit('gotMessage', { from: 'System', message: 'Room changed to ' + object.category + ' sorted by ' + object.sort, time: new Date().toLocaleTimeString() })
+      io.sockets.in(room).emit('gotMessage', { from: 'System', message: object.category + ' sorted by ' + object.sort + ' /: ' + roomdata.get(socket, 'currentCoubPage'), time: new Date().toLocaleTimeString() })
       return new Promise((resolve, reject) => {
         if (object.category === 'hot') {
           request(
             {
               url: `http://coub.com/api/v2/timeline/hot?page=${roomdata.get(
                 socket,
-                'latestCoubsPage'
+                'currentCoubPage'
               )}&per_page=${pageSize}&order_by=${object.sort}`,
               json: true
             },
@@ -63,11 +70,12 @@ io.on('connection', function (socket) {
                 io.sockets
                   .in(room)
                   .emit(
-                    'gotNext',
+                    'gotCoub',
                     roomdata.get(socket, 'loadedCoubs')[
                       roomdata.get(socket, 'coubIndex')
                     ]
-                  )
+                  )             
+                io.sockets.in(room).emit('gotMessage', { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
               }
 
               if (!error) {
@@ -82,7 +90,7 @@ io.on('connection', function (socket) {
             {
               url: `http://coub.com/api/v2/timeline/explore/${object.sort}?page=${roomdata.get(
                 socket,
-                'latestCoubsPage'
+                'currentCoubPage'
               )}&per_page=${pageSize}`,
               json: true
             },
@@ -92,11 +100,12 @@ io.on('connection', function (socket) {
                 io.sockets
                   .in(room)
                   .emit(
-                    'gotNext',
+                    'gotCoub',
                     roomdata.get(socket, 'loadedCoubs')[
                       roomdata.get(socket, 'coubIndex')
                     ]
                   )
+                io.sockets.in(room).emit('gotMessage', { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
               }
 
               if (!error) {
@@ -127,17 +136,18 @@ io.on('connection', function (socket) {
           io.sockets
             .in(room)
             .emit(
-              'gotPrev',
+              'gotCoub',
               roomdata.get(socket, 'loadedCoubs')[
                 roomdata.get(socket, 'coubIndex')
               ]
             )
+            io.sockets.in(room).emit('gotMessage', { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
         } else {
-          if (roomdata.get(socket, 'latestCoubsPage') > 1) {
+          if (roomdata.get(socket, 'currentCoubPage') > 1) {
             roomdata.set(
               socket,
-              'latestCoubsPage',
-              roomdata.get(socket, 'latestCoubsPage') - 1
+              'currentCoubPage',
+              roomdata.get(socket, 'currentCoubPage') - 1
             )
             roomdata.set(socket, 'coubIndex', pageSize - 1)
             getLatest(roomdata.get(socket, 'timeline'))
@@ -165,20 +175,20 @@ io.on('connection', function (socket) {
           io.sockets
             .in(room)
             .emit(
-              'gotNext',
+              'gotCoub',
               roomdata.get(socket, 'loadedCoubs')[
                 roomdata.get(socket, 'coubIndex')
               ]
             )
+            io.sockets.in(room).emit('gotMessage', { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
         } else {
           roomdata.set(socket, 'coubIndex', 0)
           roomdata.set(
             socket,
-            'latestCoubsPage',
-            roomdata.get(socket, 'latestCoubsPage') + 1
+            'currentCoubPage',
+            roomdata.get(socket, 'currentCoubPage') + 1
           )
           getLatest(roomdata.get(socket, 'timeline')).then(() => {
-            console.log('then next page')
           })
         }
       } else {
@@ -188,6 +198,8 @@ io.on('connection', function (socket) {
       }
     })
     socket.on('disconnect', function () {
+      console.log('user left ', socket.id)
+
       roomdata.leaveRoom(socket)
       io.sockets.in(room).emit('notification', {
         text: 'User ' + socket.id + ' left',
@@ -198,5 +210,5 @@ io.on('connection', function (socket) {
 })
 
 http.listen(port, function () {
-  console.log('listening on *:'+port)
+  console.log('listening on *:' + port)
 })
