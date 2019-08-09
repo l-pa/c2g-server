@@ -20,6 +20,7 @@
     "helmet": "^3.20.0",
     "request": "^2.88.0",
     "roomdata": "^1.1.7-b",
-    "socket.io": "^2.2.0"
+    "socket.io": "^2.2.0",
+    "standard": "^13.1.0"
   }
 }

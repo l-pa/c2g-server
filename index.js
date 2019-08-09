@@ -21,6 +21,24 @@ app.get('/', function (req, res) {
   res.send('<h1>C2G server API</h1>')
 })
 
+function isEmpty (str) {
+  return str.replace(/^\s+|\s+$/gm, '').length === 0
+}
+
+function sendCoub (socket, room, joined) {
+  io.sockets
+    .in(room)
+    .emit(
+      'gotCoub',
+      roomdata.get(socket, 'loadedCoubs')[
+        roomdata.get(socket, 'coubIndex')
+      ]
+    )
+  if (!joined) {
+    roomdata.set(socket, 'coubCount', roomdata.get(socket, 'coubCount') + 1)
+  }
+  io.in(room).emit('coubCount', roomdata.get(socket, 'coubCount'))
+}
 io.on('connection', function (socket) {
   console.log(socket.id)
 
@@ -31,29 +49,36 @@ io.on('connection', function (socket) {
     })
 
     socket.on('message', (message) => {
-      io.sockets.in(room).emit('gotMessage', message)
+      sendMessage(room, message)
     })
 
     roomdata.joinRoom(socket, room)
-    if (io.sockets.adapter.rooms[room] && Object.keys(io.sockets.adapter.rooms[room].sockets).length < 2) { // FIXME Proper user handle
-      resetRoom()
-      roomdata.set(socket, 'roomOwner', socket.id)
-    } else {
-      if (roomdata.get(socket, 'loadedCoubs') != null) {
-        io.in(room).emit(
-          'gotCoub',
-          roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')]
-        )
+    try {
+      if (io.sockets.adapter.rooms[room] && Object.keys(io.sockets.adapter.rooms[room].sockets).length < 2) { // FIXME Proper user handle
+        resetRoom()
+        roomdata.set(socket, 'coubCount', 0)
+        roomdata.set(socket, 'roomOwner', socket.id)
+      } else {
+        if (roomdata.get(socket, 'loadedCoubs') != null) {
+          sendCoub(socket, room, true)
+        }
       }
+    } catch (error) {
+      console.log(error)
+      roomdata.clearRoom(room)
     }
     function resetRoom () {
       roomdata.set(socket, 'coubIndex', 0)
       roomdata.set(socket, 'currentCoubPage', 1)
     }
 
+    function sendMessage (room, message) {
+      io.sockets.in(room).emit('gotMessage', message)
+    }
+
     const getLatest = (object) => {
       roomdata.set(socket, 'timeline', object)
-      io.sockets.in(room).emit('gotMessage', { from: 'System', message: object.category + ' sorted by ' + object.sort + ' /: ' + roomdata.get(socket, 'currentCoubPage'), time: new Date().toLocaleTimeString() })
+      sendMessage(room, { from: 'System', message: object.category + ' sorted by ' + object.sort + ' /: ' + roomdata.get(socket, 'currentCoubPage'), time: new Date().toLocaleTimeString() })
       return new Promise((resolve, reject) => {
         if (object.category === 'hot') {
           request(
@@ -67,19 +92,12 @@ io.on('connection', function (socket) {
             function (error, response, body) {
               if (!error && response.statusCode === 200) {
                 roomdata.set(socket, 'loadedCoubs', body['coubs'])
-                io.sockets
-                  .in(room)
-                  .emit(
-                    'gotCoub',
-                    roomdata.get(socket, 'loadedCoubs')[
-                      roomdata.get(socket, 'coubIndex')
-                    ]
-                  )
-                  try {
-                    io.sockets.in(room).emit('gotMessage', { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
-                  } catch (error) {
-                    console.log(error)
-                  }
+                sendCoub(socket, room)
+                try {
+                  sendMessage(room, { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
+                } catch (error) {
+                  console.log(error)
+                }
               }
 
               if (!error) {
@@ -101,19 +119,13 @@ io.on('connection', function (socket) {
             function (error, response, body) {
               if (!error && response.statusCode === 200) {
                 roomdata.set(socket, 'loadedCoubs', body['coubs'])
-                io.sockets
-                  .in(room)
-                  .emit(
-                    'gotCoub',
-                    roomdata.get(socket, 'loadedCoubs')[
-                      roomdata.get(socket, 'coubIndex')
-                    ]
-                  )
-                  try {
-                    io.sockets.in(room).emit('gotMessage', { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
-                  } catch (error) {
-                    console.log(error)
-                  }
+                sendCoub(socket, room)
+
+                try {
+                  sendMessage(room, { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
+                } catch (error) {
+                  console.log(error)
+                }
               }
 
               if (!error) {
@@ -123,40 +135,74 @@ io.on('connection', function (socket) {
               }
             }
           )
-        } else if (object.category === 'tag') {
-          request(
-            {
-              url: `http://coub.com/api/v2/timeline/channel/so-sexy-hot-girls-in-coubs?order_by=${object.sort}?page=${roomdata.get(
-                socket,
-                'currentCoubPage'
-              )}&per_page=${pageSize}`,
-              json: true
-            },
-            function (error, response, body) {
-              if (!error && response.statusCode === 200) {
-                roomdata.set(socket, 'loadedCoubs', body['coubs'])
-                io.sockets
-                  .in(room)
-                  .emit(
-                    'gotCoub',
-                    roomdata.get(socket, 'loadedCoubs')[
-                      roomdata.get(socket, 'coubIndex')
-                    ]
-                  )
+        } else if (object.category === 'channel') {
+          if (!isEmpty(object.channel)) {
+            request(
+              {
+                url: `http://coub.com/api/v2/timeline/channel/${object.channel}?order_by=${object.sort}?page=${roomdata.get(
+                  socket,
+                  'currentCoubPage'
+                )}&per_page=${pageSize}`,
+                json: true
+              },
+              function (error, response, body) {
+                if (!error && response.statusCode === 200) {
+                  roomdata.set(socket, 'loadedCoubs', body['coubs'])
+                  sendCoub(socket, room)
                   try {
-                    io.sockets.in(room).emit('gotMessage', { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
+                    sendMessage(room, { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
+                    sendMessage(room, { from: 'System', message: object.channel, time: new Date().toLocaleTimeString() })
                   } catch (error) {
                     console.log(error)
                   }
-              }
+                } else {
+                  io.sockets
+                    .in(room)
+                    .emit('notification', { text: 'Bad username', type: 'error' })
+                }
 
-              if (!error) {
-                resolve('Stuff worked!')
-              } else {
-                reject(Error('It broke'))
+                if (!error) {
+                  resolve('Stuff worked!')
+                } else {
+                  reject(Error('It broke'))
+                }
               }
-            }
-          )
+            )
+          }
+        } else if (object.category === 'hashtag') {
+          if (!isEmpty(object.hashtag)) {
+            request(
+              {
+                url: `http://coub.com/api/v2/timeline/tag/${object.hashtag}?order_by=${object.sort}?page=${roomdata.get(
+                  socket,
+                  'currentCoubPage'
+                )}&per_page=${pageSize}`,
+                json: true
+              },
+              function (error, response, body) {
+                if (!error && response.statusCode === 200) {
+                  roomdata.set(socket, 'loadedCoubs', body['coubs'])
+                  sendCoub(socket, room)
+                  try {
+                    sendMessage(room, { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
+                    sendMessage(room, { from: 'System', message: object.hashtag, time: new Date().toLocaleTimeString() })
+                  } catch (error) {
+                    console.log(error)
+                  }
+                } else {
+                  io.sockets
+                    .in(room)
+                    .emit('notification', { text: 'Bad hashtag', type: 'error' })
+                }
+
+                if (!error) {
+                  resolve('Stuff worked!')
+                } else {
+                  reject(Error('It broke'))
+                }
+              }
+            )
+          }
         }
       })
     }
@@ -175,19 +221,12 @@ io.on('connection', function (socket) {
             roomdata.get(socket, 'coubIndex') - 1
           )
 
-          io.sockets
-            .in(room)
-            .emit(
-              'gotCoub',
-              roomdata.get(socket, 'loadedCoubs')[
-                roomdata.get(socket, 'coubIndex')
-              ]
-            )
-            try {
-              io.sockets.in(room).emit('gotMessage', { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
-            } catch (error) {
-              console.log(error)
-            }
+          sendCoub(socket, room)
+          try {
+            sendMessage(room, { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
+          } catch (error) {
+            console.log(error)
+          }
         } else {
           if (roomdata.get(socket, 'currentCoubPage') > 1) {
             roomdata.set(
@@ -218,16 +257,9 @@ io.on('connection', function (socket) {
             'coubIndex',
             roomdata.get(socket, 'coubIndex') + 1
           )
-          io.sockets
-            .in(room)
-            .emit(
-              'gotCoub',
-              roomdata.get(socket, 'loadedCoubs')[
-                roomdata.get(socket, 'coubIndex')
-              ]
-            )
+          sendCoub(socket, room)
           try {
-            io.sockets.in(room).emit('gotMessage', { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
+            sendMessage(room, { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
           } catch (error) {
             console.log(error)
           }
@@ -249,8 +281,11 @@ io.on('connection', function (socket) {
     })
     socket.on('disconnect', function () {
       console.log('user left ', socket.id)
-
-      roomdata.leaveRoom(socket)
+      try {
+        roomdata.leaveRoom(socket)
+      } catch (error) {
+        console.log(error)
+      }
       io.sockets.in(room).emit('notification', {
         text: 'User ' + socket.id + ' left',
         type: 'info'
