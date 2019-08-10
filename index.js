@@ -7,6 +7,7 @@ var compression = require('compression')
 var helmet = require('helmet')
 
 var port = process.env.PORT || 8080
+const path = require('path');
 
 var roomdata = require('roomdata')
 
@@ -19,6 +20,10 @@ app.use(helmet())
 
 app.get('/', function (req, res) {
   res.send('<h1>C2G server API</h1>')
+})
+
+app.get('/blog', function (req, res) {
+  res.sendFile(path.join(__dirname, './public', 'blog.html'))
 })
 
 function isEmpty (str) {
@@ -39,13 +44,45 @@ function sendCoub (socket, room, joined) {
   }
   io.in(room).emit('coubCount', roomdata.get(socket, 'coubCount'))
 }
-io.on('connection', function (socket) {
-  console.log(socket.id)
 
+function handleUsers (socket, room) { // TODO
+  const users = Object.values(io.sockets.sockets).map((user) => {
+    if (room === user.roomdata_room) {
+      if (socket.id === roomdata.get(socket, 'roomOwner')) {
+        roomdata.set(socket, 'roomOwner', user.id)
+      }
+      if (!user.username || user.username === 'undefined') {
+        return { id: user.id, username: user.id, joined: new Date(), owner: user.id === roomdata.get(socket, 'roomOwner') }
+      } else {
+        return { id: user.id, username: user.username, joined: new Date(), owner: user.id === roomdata.get(socket, 'roomOwner') }
+      }
+    }
+  })
+
+  console.log(users)
+  io.sockets.in(room).emit('users', users)
+}
+
+io.on('connection', function (socket) {
   socket.on('room', function (room) {
     io.sockets.in(room).emit('notification', {
       text: 'User ' + socket.id + ' joined',
       type: 'info'
+    })
+
+    socket.on('username', (username) => {
+      //   roomdata.get(socket, 'roomMembers').push({ id: socket.id, username: username })
+      socket.username = username
+      handleUsers(socket, room)
+      //  console.log(io.sockets.adapter.rooms[room])
+      //  console.log(Object.values(io.sockets.sockets))
+
+      // roomdata.set(socket, 'roomMembers', roomdata.get(socket, 'roomMembers'))
+    })
+
+    socket.on('lock', () => {
+      roomdata.set(socket, 'lock', !roomdata.get(socket, 'lock'))
+      console.log(roomdata.get(socket, 'lock'))
     })
 
     socket.on('message', (message) => {
@@ -55,9 +92,10 @@ io.on('connection', function (socket) {
     roomdata.joinRoom(socket, room)
     try {
       if (io.sockets.adapter.rooms[room] && Object.keys(io.sockets.adapter.rooms[room].sockets).length < 2) { // FIXME Proper user handle
-        resetRoom()
+        resetRoom(room)
         roomdata.set(socket, 'coubCount', 0)
         roomdata.set(socket, 'roomOwner', socket.id)
+        roomdata.set(socket, 'lock', false)
       } else {
         if (roomdata.get(socket, 'loadedCoubs') != null) {
           sendCoub(socket, room, true)
@@ -70,6 +108,7 @@ io.on('connection', function (socket) {
     function resetRoom () {
       roomdata.set(socket, 'coubIndex', 0)
       roomdata.set(socket, 'currentCoubPage', 1)
+      roomdata.set(socket, 'roomMembers', [])
     }
 
     function sendMessage (room, message) {
@@ -185,7 +224,7 @@ io.on('connection', function (socket) {
                   sendCoub(socket, room)
                   try {
                     sendMessage(room, { from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
-                    sendMessage(room, { from: 'System', message: object.hashtag, time: new Date().toLocaleTimeString() })
+                    sendMessage(room, { from: 'System', message: '#' + object.hashtag, time: new Date().toLocaleTimeString() })
                   } catch (error) {
                     console.log(error)
                   }
@@ -278,10 +317,12 @@ io.on('connection', function (socket) {
           .in(room)
           .emit('notification', { text: 'Select source', type: 'warning' })
       }
-    })
+    }
+    )
     socket.on('disconnect', function () {
       console.log('user left ', socket.id)
       try {
+        handleUsers(socket, room)
         roomdata.leaveRoom(socket)
       } catch (error) {
         console.log(error)
