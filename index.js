@@ -19,7 +19,7 @@ app.use(compression())
 app.use(helmet())
 
 app.get('/', function (req, res) {
-  res.send('<h1>C2G server API</h1>')
+  res.send('<h1>C2G server API - 0.2</h1>')
 })
 
 app.get('/blog', function (req, res) {
