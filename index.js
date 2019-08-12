@@ -7,7 +7,7 @@ var compression = require('compression')
 var helmet = require('helmet')
 
 var port = process.env.PORT || 8080
-const path = require('path');
+const path = require('path')
 
 var roomdata = require('roomdata')
 
@@ -46,21 +46,25 @@ function sendCoub (socket, room, joined) {
 }
 
 function handleUsers (socket, room) { // TODO
-  const users = Object.values(io.sockets.sockets).map((user) => {
-    if (room === user.roomdata_room) {
-      if (socket.id === roomdata.get(socket, 'roomOwner')) {
-        roomdata.set(socket, 'roomOwner', user.id)
+  var promise1 = new Promise(function (resolve, reject) {
+    resolve(Object.values(io.sockets.sockets).map((user) => {
+      if (room === user.roomdata_room) {
+        if (socket.id === roomdata.get(socket, 'roomOwner')) {
+          roomdata.set(socket, 'roomOwner', user.id)
+        }
+        if (!user.username || user.username === 'undefined') {
+          return { id: user.id, username: user.id, joined: new Date(), owner: user.id === roomdata.get(socket, 'roomOwner') }
+        } else {
+          return { id: user.id, username: user.username, joined: new Date(), owner: user.id === roomdata.get(socket, 'roomOwner') }
+        }
       }
-      if (!user.username || user.username === 'undefined') {
-        return { id: user.id, username: user.id, joined: new Date(), owner: user.id === roomdata.get(socket, 'roomOwner') }
-      } else {
-        return { id: user.id, username: user.username, joined: new Date(), owner: user.id === roomdata.get(socket, 'roomOwner') }
-      }
-    }
+    }))
   })
 
-  console.log(users)
-  io.sockets.in(room).emit('users', users)
+  promise1.then((users) => {
+    console.log(users)
+    io.sockets.in(room).emit('users', users)
+  })
 }
 
 io.on('connection', function (socket) {
@@ -320,7 +324,7 @@ io.on('connection', function (socket) {
     }
     )
     socket.on('disconnect', function () {
-      console.log('user left ', socket.id)
+      console.log('user left ', socket.username)
       try {
         handleUsers(socket, room)
         roomdata.leaveRoom(socket)
@@ -328,7 +332,7 @@ io.on('connection', function (socket) {
         console.log(error)
       }
       io.sockets.in(room).emit('notification', {
-        text: 'User ' + socket.id + ' left',
+        text: 'User ' + socket.username + ' left',
         type: 'info'
       })
     })
