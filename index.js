@@ -11,7 +11,9 @@ const path = require('path')
 
 var roomdata = require('roomdata')
 
-const pageSize = 25
+const pageSize = 5
+
+var os = require('os')
 
 // roomdata.leaveRoom(socket); // you will have to replace your socket.leave with this line
 
@@ -28,6 +30,10 @@ app.get('/blog', function (req, res) {
 
 function isEmpty (str) {
   return str.replace(/^\s+|\s+$/gm, '').length === 0
+}
+
+function sendMessage (room, message) {
+  io.sockets.in(room).emit('gotMessage', message)
 }
 
 function sendCoub (socket, room, joined) {
@@ -78,6 +84,9 @@ io.on('connection', function (socket) {
       //   roomdata.get(socket, 'roomMembers').push({ id: socket.id, username: username })
       socket.username = username
       handleUsers(socket, room)
+
+      sendMessage(room, { userId: 'System', from: 'Debug', time: new Date(), message: 'User joined', id: socket.id, username: socket.username, joined: new Date(), owner: socket.id === roomdata.get(socket, 'roomOwner') })
+
       //  console.log(io.sockets.adapter.rooms[room])
       //  console.log(Object.values(io.sockets.sockets))
 
@@ -94,6 +103,7 @@ io.on('connection', function (socket) {
     })
 
     roomdata.joinRoom(socket, room)
+    socket.emit('gotMessage', { userId: 'System', from: 'System', time: new Date(), message: 'Connected to :' + os.hostname() })
     try {
       if (io.sockets.adapter.rooms[room] && Object.keys(io.sockets.adapter.rooms[room].sockets).length < 2) { // FIXME Proper user handle
         resetRoom(room)
@@ -115,10 +125,6 @@ io.on('connection', function (socket) {
       roomdata.set(socket, 'roomMembers', [])
     }
 
-    function sendMessage (room, message) {
-      io.sockets.in(room).emit('gotMessage', message)
-    }
-
     const getLatest = (object) => {
       roomdata.set(socket, 'timeline', object)
       sendMessage(room, { userId: 'System', from: 'System', message: object.category + ' sorted by ' + object.sort + ' /: ' + roomdata.get(socket, 'currentCoubPage'), time: new Date().toLocaleTimeString() })
@@ -137,7 +143,7 @@ io.on('connection', function (socket) {
                 roomdata.set(socket, 'loadedCoubs', body['coubs'])
                 sendCoub(socket, room)
                 try {
-                  sendMessage(room, {userId: 'System', from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
+                  sendMessage(room, { userId: 'System', from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
                 } catch (error) {
                   console.log(error)
                 }
@@ -325,6 +331,8 @@ io.on('connection', function (socket) {
     )
     socket.on('disconnect', function () {
       console.log('user left ', socket.username)
+      sendMessage(room, { userId: 'System', from: 'Debug', time: new Date(), message: 'User left', id: socket.id, username: socket.username, joined: new Date(), owner: socket.id === roomdata.get(socket, 'roomOwner') })
+
       try {
         handleUsers(socket, room)
         roomdata.leaveRoom(socket)
