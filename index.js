@@ -11,9 +11,14 @@ const path = require('path')
 
 var roomdata = require('roomdata')
 
-const pageSize = 5
+const pageSizeCoub = 5
+
+const pageSizeTikTok = 30
+
 
 var os = require('os')
+
+var tiktok = require('tiktok-scraper')
 
 // roomdata.leaveRoom(socket); // you will have to replace your socket.leave with this line
 
@@ -21,28 +26,28 @@ app.use(compression())
 app.use(helmet())
 
 app.get('/', function (req, res) {
-  res.send('<h1>C2G server API - 0.2</h1>')
+  res.send('<h1>C2G server API - 0.3 - Tiktok!!!</h1>')
 })
 
 app.get('/blog', function (req, res) {
   res.sendFile(path.join(__dirname, './public', 'blog.html'))
 })
 
-function isEmpty (str) {
+function isEmpty(str) {
   return str.replace(/^\s+|\s+$/gm, '').length === 0
 }
 
-function sendMessage (room, message) {
+function sendMessage(room, message) {
   io.sockets.in(room).emit('gotMessage', message)
 }
 
-function sendCoub (socket, room, joined) {
+function sendCoub(socket, room, joined) {
   io.sockets
     .in(room)
     .emit(
       'gotCoub',
       roomdata.get(socket, 'loadedCoubs')[
-        roomdata.get(socket, 'coubIndex')
+      roomdata.get(socket, 'videoIndex')
       ]
     )
   if (!joined) {
@@ -51,7 +56,22 @@ function sendCoub (socket, room, joined) {
   io.in(room).emit('coubCount', roomdata.get(socket, 'coubCount'))
 }
 
-function handleUsers (socket, room) { // TODO
+function sendTiktok(socket, room, joined) {  
+  io.sockets
+    .in(room)
+    .emit(
+      'gotTiktok',
+      roomdata.get(socket, 'loadedTiktoks')[
+      roomdata.get(socket, 'videoIndex')
+      ]
+    )
+  if (!joined) {
+    // roomdata.set(socket, 'coubCount', roomdata.get(socket, 'coubCount') + 1)
+  }
+  // io.in(room).emit('coubCount', roomdata.get(socket, 'coubCount'))
+}
+
+function handleUsers(socket, room) { // TODO
   var promise1 = new Promise(function (resolve, reject) {
     resolve(Object.values(io.sockets.sockets).map((user) => {
       if (room === user.roomdata_room) {
@@ -106,7 +126,7 @@ io.on('connection', function (socket) {
     socket.emit('gotMessage', { userId: 'System', from: 'System', time: new Date(), message: 'Connected to :' + os.hostname() })
     try {
       if (io.sockets.adapter.rooms[room] && Object.keys(io.sockets.adapter.rooms[room].sockets).length < 2) { // FIXME Proper user handle
-        resetRoom(room)
+        resetRoom()
         roomdata.set(socket, 'coubCount', 0)
         roomdata.set(socket, 'roomOwner', socket.id)
         roomdata.set(socket, 'lock', false)
@@ -119,23 +139,33 @@ io.on('connection', function (socket) {
       console.log(error)
       roomdata.clearRoom(room)
     }
-    function resetRoom () {
-      roomdata.set(socket, 'coubIndex', 0)
-      roomdata.set(socket, 'currentCoubPage', 1)
+    function resetRoom(object={platform:"coub"}) {
+      roomdata.set(socket, 'platform', object.platform)
+      roomdata.set(socket, 'videoIndex', 0)
+      roomdata.set(socket, 'currentVideoPage', 1)
       roomdata.set(socket, 'roomMembers', [])
+
     }
 
-    const getLatest = (object) => {
+    const getTikToks = (object) => {
+      sendMessage(room, { userId: 'System', from: 'System', message: 'idk' + ' sorted by ' + 'sort' + ' /: ' + roomdata.get(socket, 'currentVideoPage'), time: new Date().toLocaleTimeString() })
+
+      tiktok.trend("trend", { number: pageSizeTikTok, proxy: '', timeout: 0, download: false, filepath: process.cwd(), filepath: 'na' }).then((res) => {        
+        roomdata.set(socket, 'loadedTiktoks', res.collector); sendTiktok(socket, room)
+      })
+    }
+
+    const getLatestCoubs = (object) => {
       roomdata.set(socket, 'timeline', object)
-      sendMessage(room, { userId: 'System', from: 'System', message: object.category + ' sorted by ' + object.sort + ' /: ' + roomdata.get(socket, 'currentCoubPage'), time: new Date().toLocaleTimeString() })
+      sendMessage(room, { userId: 'System', from: 'System', message: object.category + ' sorted by ' + object.sort + ' /: ' + roomdata.get(socket, 'currentVideoPage'), time: new Date().toLocaleTimeString() })
       return new Promise((resolve, reject) => {
         if (object.category === 'hot') {
           request(
             {
               url: `http://coub.com/api/v2/timeline/hot?page=${roomdata.get(
                 socket,
-                'currentCoubPage'
-              )}&per_page=${pageSize}&order_by=${object.sort}`,
+                'currentVideoPage'
+              )}&per_page=${pageSizeCoub}&order_by=${object.sort}`,
               json: true
             },
             function (error, response, body) {
@@ -143,7 +173,7 @@ io.on('connection', function (socket) {
                 roomdata.set(socket, 'loadedCoubs', body['coubs'])
                 sendCoub(socket, room)
                 try {
-                  sendMessage(room, { userId: 'System', from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
+                  sendMessage(room, { userId: 'System', from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].title, time: new Date().toLocaleTimeString() })
                 } catch (error) {
                   console.log(error)
                 }
@@ -161,8 +191,8 @@ io.on('connection', function (socket) {
             {
               url: `http://coub.com/api/v2/timeline/explore/${object.sort}?page=${roomdata.get(
                 socket,
-                'currentCoubPage'
-              )}&per_page=${pageSize}`,
+                'currentVideoPage'
+              )}&per_page=${pageSizeCoub}`,
               json: true
             },
             function (error, response, body) {
@@ -171,7 +201,7 @@ io.on('connection', function (socket) {
                 sendCoub(socket, room)
 
                 try {
-                  sendMessage(room, { userId: 'System', from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
+                  sendMessage(room, { userId: 'System', from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].title, time: new Date().toLocaleTimeString() })
                 } catch (error) {
                   console.log(error)
                 }
@@ -190,8 +220,8 @@ io.on('connection', function (socket) {
               {
                 url: `http://coub.com/api/v2/timeline/channel/${object.channel}?order_by=${object.sort}?page=${roomdata.get(
                   socket,
-                  'currentCoubPage'
-                )}&per_page=${pageSize}`,
+                  'currentVideoPage'
+                )}&per_page=${pageSizeCoub}`,
                 json: true
               },
               function (error, response, body) {
@@ -199,7 +229,7 @@ io.on('connection', function (socket) {
                   roomdata.set(socket, 'loadedCoubs', body['coubs'])
                   sendCoub(socket, room)
                   try {
-                    sendMessage(room, { userId: 'System', from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
+                    sendMessage(room, { userId: 'System', from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].title, time: new Date().toLocaleTimeString() })
                     sendMessage(room, { userId: 'System', from: 'System', message: object.channel, time: new Date().toLocaleTimeString() })
                   } catch (error) {
                     console.log(error)
@@ -224,8 +254,8 @@ io.on('connection', function (socket) {
               {
                 url: `http://coub.com/api/v2/timeline/tag/${object.hashtag}?order_by=${object.sort}?page=${roomdata.get(
                   socket,
-                  'currentCoubPage'
-                )}&per_page=${pageSize}`,
+                  'currentVideoPage'
+                )}&per_page=${pageSizeCoub}`,
                 json: true
               },
               function (error, response, body) {
@@ -233,7 +263,7 @@ io.on('connection', function (socket) {
                   roomdata.set(socket, 'loadedCoubs', body['coubs'])
                   sendCoub(socket, room)
                   try {
-                    sendMessage(room, { userId: 'System', from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
+                    sendMessage(room, { userId: 'System', from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].title, time: new Date().toLocaleTimeString() })
                     sendMessage(room, { userId: 'System', from: 'System', message: '#' + object.hashtag, time: new Date().toLocaleTimeString() })
                   } catch (error) {
                     console.log(error)
@@ -257,34 +287,42 @@ io.on('connection', function (socket) {
     }
 
     socket.on('category', (object) => {
-      resetRoom()
-      getLatest(object)
+      resetRoom(object)
+
+      switch (object.platform) {
+        case 'coub':
+          getLatestCoubs(object)
+
+        case 'tiktok':
+          getTikToks()
+          break
+      }
     })
 
     socket.on('reqPrev', function () {
       if (roomdata.get(socket, 'loadedCoubs') != null) {
-        if (roomdata.get(socket, 'coubIndex') > 0) {
+        if (roomdata.get(socket, 'videoIndex') > 0) {
           roomdata.set(
             socket,
-            'coubIndex',
-            roomdata.get(socket, 'coubIndex') - 1
+            'videoIndex',
+            roomdata.get(socket, 'videoIndex') - 1
           )
 
           sendCoub(socket, room)
           try {
-            sendMessage(room, { userId: 'System', from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
+            sendMessage(room, { userId: 'System', from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].title, time: new Date().toLocaleTimeString() })
           } catch (error) {
             console.log(error)
           }
         } else {
-          if (roomdata.get(socket, 'currentCoubPage') > 1) {
+          if (roomdata.get(socket, 'currentVideoPage') > 1) {
             roomdata.set(
               socket,
-              'currentCoubPage',
-              roomdata.get(socket, 'currentCoubPage') - 1
+              'currentVideoPage',
+              roomdata.get(socket, 'currentVideoPage') - 1
             )
-            roomdata.set(socket, 'coubIndex', pageSize - 1)
-            getLatest(roomdata.get(socket, 'timeline'))
+            roomdata.set(socket, 'videoIndex', pageSizeCoub - 1)
+            getLatestCoubs(roomdata.get(socket, 'timeline'))
           } else {
             io.sockets
               .in(room)
@@ -299,34 +337,72 @@ io.on('connection', function (socket) {
     })
 
     socket.on('reqNext', function () {
-      if (roomdata.get(socket, 'loadedCoubs') != null) {
-        if (roomdata.get(socket, 'coubIndex') < pageSize - 1) {
-          roomdata.set(
-            socket,
-            'coubIndex',
-            roomdata.get(socket, 'coubIndex') + 1
-          )
-          sendCoub(socket, room)
-          try {
-            sendMessage(room, { userId: 'System', from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'coubIndex')].title, time: new Date().toLocaleTimeString() })
-          } catch (error) {
-            console.log(error)
+
+      switch(roomdata.get(socket, 'platform')) {
+        case 'coub':
+          if (roomdata.get(socket, 'loadedCoubs') != null) {
+            if (roomdata.get(socket, 'videoIndex') < pageSizeCoub - 1) {
+              roomdata.set(
+                socket,
+                'videoIndex',
+                roomdata.get(socket, 'videoIndex') + 1
+              )
+              sendCoub(socket, room)
+              try {
+                sendMessage(room, { userId: 'System', from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].title, time: new Date().toLocaleTimeString() })
+              } catch (error) {
+                console.log(error)
+              }
+            } else {
+              roomdata.set(socket, 'videoIndex', 0)
+              roomdata.set(
+                socket,
+                'currentVideoPage',
+                roomdata.get(socket, 'currentVideoPage') + 1
+              )
+              getLatestCoubs(roomdata.get(socket, 'timeline')).then(() => {
+              })
+            }
+          } else {
+            io.sockets
+              .in(room)
+              .emit('notification', { text: 'Select source', type: 'warning' })
           }
-        } else {
-          roomdata.set(socket, 'coubIndex', 0)
-          roomdata.set(
-            socket,
-            'currentCoubPage',
-            roomdata.get(socket, 'currentCoubPage') + 1
-          )
-          getLatest(roomdata.get(socket, 'timeline')).then(() => {
-          })
-        }
-      } else {
-        io.sockets
-          .in(room)
-          .emit('notification', { text: 'Select source', type: 'warning' })
+        break
+
+        case 'tiktok':
+          if (roomdata.get(socket, 'loadedTiktoks') != null) {
+            if (roomdata.get(socket, 'videoIndex') < pageSizeTikTok - 1) {
+              roomdata.set(
+                socket,
+                'videoIndex',
+                roomdata.get(socket, 'videoIndex') + 1
+              )
+              sendTiktok(socket, room)
+              try {
+            //    sendMessage(room, { userId: 'System', from: 'Tiktok', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].title, time: new Date().toLocaleTimeString() })
+              } catch (error) {
+                console.log(error)
+              }
+            } 
+             else {
+               roomdata.set(socket, 'videoIndex', 0)
+               roomdata.set(
+                 socket,
+                 'currentVideoPage',
+                 roomdata.get(socket, 'currentVideoPage') + 1
+               )
+               getLatestCoubs(roomdata.get(socket, 'timeline')).then(() => {
+               })
+             }
+          } else {
+            io.sockets
+              .in(room)
+              .emit('notification', { text: 'Error', type: 'warning' })
+          }
+        break
       }
+    
     }
     )
     socket.on('disconnect', function () {
