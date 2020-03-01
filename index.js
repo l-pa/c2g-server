@@ -13,8 +13,7 @@ var roomdata = require('roomdata')
 
 const pageSizeCoub = 5
 
-const pageSizeTikTok = 30
-
+const pageSizeTikTok = 500
 
 var os = require('os')
 
@@ -151,6 +150,8 @@ io.on('connection', function (socket) {
       sendMessage(room, { userId: 'System', from: 'System', message: 'idk' + ' sorted by ' + 'sort' + ' /: ' + roomdata.get(socket, 'currentVideoPage'), time: new Date().toLocaleTimeString() })
 
       tiktok.trend("trend", { number: pageSizeTikTok, proxy: '', timeout: 0, download: false, filepath: process.cwd(), filepath: 'na' }).then((res) => {        
+        console.log(res.collector.length);
+        
         roomdata.set(socket, 'loadedTiktoks', res.collector); sendTiktok(socket, room)
       })
     }
@@ -300,40 +301,83 @@ io.on('connection', function (socket) {
     })
 
     socket.on('reqPrev', function () {
-      if (roomdata.get(socket, 'loadedCoubs') != null) {
-        if (roomdata.get(socket, 'videoIndex') > 0) {
-          roomdata.set(
-            socket,
-            'videoIndex',
-            roomdata.get(socket, 'videoIndex') - 1
-          )
 
-          sendCoub(socket, room)
-          try {
-            sendMessage(room, { userId: 'System', from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].title, time: new Date().toLocaleTimeString() })
-          } catch (error) {
-            console.log(error)
-          }
-        } else {
-          if (roomdata.get(socket, 'currentVideoPage') > 1) {
+      switch(roomdata.get(socket, 'platform')) {
+        case 'coub':
+        if (roomdata.get(socket, 'loadedCoubs') != null) {
+          if (roomdata.get(socket, 'videoIndex') > 0) {
             roomdata.set(
               socket,
-              'currentVideoPage',
-              roomdata.get(socket, 'currentVideoPage') - 1
+              'videoIndex',
+              roomdata.get(socket, 'videoIndex') - 1
             )
-            roomdata.set(socket, 'videoIndex', pageSizeCoub - 1)
-            getLatestCoubs(roomdata.get(socket, 'timeline'))
+
+            sendCoub(socket, room)
+            try {
+              sendMessage(room, { userId: 'System', from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].title, time: new Date().toLocaleTimeString() })
+            } catch (error) {
+              console.log(error)
+            }
+          } else {
+            if (roomdata.get(socket, 'currentVideoPage') > 1) {
+              roomdata.set(
+                socket,
+                'currentVideoPage',
+                roomdata.get(socket, 'currentVideoPage') - 1
+              )
+              roomdata.set(socket, 'videoIndex', pageSizeCoub - 1)
+              getLatestCoubs(roomdata.get(socket, 'timeline'))
+            } else {
+              io.sockets
+                .in(room)
+                .emit('notification', { text: 'start', type: 'error' })
+            }
+          }
+        } else {
+          io.sockets
+            .in(room)
+            .emit('notification', { text: 'Select source', type: 'warning' })
+        }
+        break
+
+        case 'tiktok':
+          if (roomdata.get(socket, 'loadedTiktoks') != null) {
+            if (roomdata.get(socket, 'videoIndex') > 0) {
+              roomdata.set(
+                socket,
+                'videoIndex',
+                roomdata.get(socket, 'videoIndex') - 1
+              )
+  
+              sendTiktok(socket, room)
+              try {
+           //     sendMessage(room, { userId: 'System', from: 'Coub', thumbnail: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].image_versions.template, link: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].permalink, message: roomdata.get(socket, 'loadedCoubs')[roomdata.get(socket, 'videoIndex')].title, time: new Date().toLocaleTimeString() })
+              } catch (error) {
+                console.log(error)
+              }
+            } else {
+              // if (roomdata.get(socket, 'currentVideoPage') > 1) {
+              //   roomdata.set(
+              //     socket,
+              //     'currentVideoPage',
+              //     roomdata.get(socket, 'currentVideoPage') - 1
+              //   )
+              //   roomdata.set(socket, 'videoIndex', pageSizeCoub - 1)
+              //   getLatestCoubs(roomdata.get(socket, 'timeline'))
+              // } else {
+              //   io.sockets
+              //     .in(room)
+              //     .emit('notification', { text: 'start', type: 'error' })
+              // }
+            }
           } else {
             io.sockets
               .in(room)
-              .emit('notification', { text: 'start', type: 'error' })
+              .emit('notification', { text: 'Select source', type: 'warning' })
           }
-        }
-      } else {
-        io.sockets
-          .in(room)
-          .emit('notification', { text: 'Select source', type: 'warning' })
+        break;
       }
+
     })
 
     socket.on('reqNext', function () {
