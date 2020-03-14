@@ -10,7 +10,8 @@
   "keywords": [
     "expressjs",
     "express",
-    "coub"
+    "coub",
+    "tiktok"
   ],
   "author": "Lukas Papik",
   "license": "MIT",
@@ -21,7 +22,6 @@
     "request": "^2.88.0",
     "roomdata": "^1.1.7-b",
     "socket.io": "^2.2.0",
-    "standard": "^13.1.0",
-    "tiktok-scraper": "^1.0.6"
+    "tiktok-scraper": "git+https://github.com/l-pa/tiktok-scraper.git"
   }
 }
