@@ -25,7 +25,7 @@ app.use(compression())
 app.use(helmet())
 
 app.get('/', function (req, res) {
-  res.send('<h1>C2G server API - 0.3 - Tiktok!!!</h1>')
+  res.status(403).send("...")
 })
 
 app.get('/blog', function (req, res) {
@@ -130,19 +130,19 @@ io.on('connection', function (socket) {
     })
 
     socket.on("pauseVideo", (obj) => {
-      socket.emit('gotMessage', { userId: 'System', from: 'System', time: new Date(), message: obj.from + ' paused the video' })
+      socket.emit('gotMessage', { userId: 'System', from: 'Debug', time: new Date(), message: obj.from + ' paused the video' })
 
       socket.to(room).emit('pauseVideo', "pause");
     })
 
     socket.on("playVideo", (obj) => {
-      socket.emit('gotMessage', { userId: 'System', from: 'System', time: new Date(), message: obj.from + ' grame' })
+      socket.emit('gotMessage', { userId: 'System', from: 'Debug', time: new Date(), message: obj.from + ' grame' })
 
       socket.to(room).emit('playVideo', "play");
     })
 
     socket.on("seek", (obj) => {
-      socket.emit('gotMessage', { userId: 'System', from: 'System', time: new Date(), message: obj.from + ' -> ' + obj.to })
+      socket.emit('gotMessage', { userId: 'System', from: 'Debug', time: new Date(), message: obj.from + ' -> ' + obj.to })
 
       socket.to(room).emit('seek', obj.to);
     })
