@@ -526,3 +526,10 @@ io.on('connection', function (socket) {
 http.listen(port, function () {
   console.log('listening on *:' + port)
 })
+
+
+//Error handler
+process.on('uncaughtException', function (exception) {
+  // handle or ignore error
+  console.log(exception);
+});
